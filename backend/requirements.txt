@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+joblib
+scikit-learn==1.7.1
+pandas
+numpy
+tldextract
+python-whois
+dnspython
+python-dotenv
