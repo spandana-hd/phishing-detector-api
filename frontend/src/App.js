@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api, { setAuthToken } from "./api";
 import {
   Container, Typography, Card, CardContent, TextField, Button,
   CircularProgress, Alert, Grid, Table, TableBody, TableCell,
   TableHead, TableRow, ThemeProvider, createTheme
 } from "@mui/material";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
-
-// --- Configuration ---
-const API_URL = "http://127.0.0.1:8000";
 
 const darkTheme = createTheme({
   palette: {
@@ -19,10 +16,8 @@ const darkTheme = createTheme({
   }
 });
 
-// --- Main App Component ---
 function App() {
-  // --- State Variables ---
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(localStorage.getItem("token"));
   const [loginData, setLoginData] = useState({ username: "admin", password: "admin123" });
   const [emailData, setEmailData] = useState({ text: "", from_email: "", reply_to: "" });
   const [result, setResult] = useState(null);
@@ -30,15 +25,12 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // --- Effects ---
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-    if (storedToken) {
-      setToken(storedToken);
+    if (token) {
+      setAuthToken(token);
     }
-  }, []);
+  }, [token]);
 
-  // --- API Functions ---
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -47,12 +39,15 @@ function App() {
       const formData = new URLSearchParams();
       formData.append('username', loginData.username);
       formData.append('password', loginData.password);
-      const res = await axios.post(`${API_URL}/token`, formData);
+      
+      const res = await api.post("/v1/auth/token", formData);
       const accessToken = res.data.access_token;
+      
       localStorage.setItem("token", accessToken);
+      setAuthToken(accessToken);
       setToken(accessToken);
     } catch (err) {
-      setError("Login failed! Check credentials.");
+      setError("Login failed! Check credentials or backend server.");
     }
     setIsLoading(false);
   };
@@ -63,11 +58,7 @@ function App() {
     setResult(null);
     setError("");
     try {
-      const { data } = await axios.post(
-        `${API_URL}/predict/`, 
-        emailData, // Send the whole emailData object
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const { data } = await api.post("/v1/predict/", emailData);
       setResult(data);
       const newEntry = {
         ...emailData,
@@ -84,44 +75,26 @@ function App() {
   
   const handleLogout = () => {
     localStorage.removeItem("token");
-    setToken("");
+    setAuthToken(null);
+    setToken(null);
   };
 
-  // --- Chart & Table Data ---
   const trendData = [...history].reverse().map(e => ({
     time: e.timestamp,
     phishing: e.prediction === "phishing" ? 1 : 0,
   }));
 
-  // --- Render Logic ---
   if (!token) {
     // RENDER LOGIN PAGE
     return (
       <ThemeProvider theme={darkTheme}>
-        <Container component="main" maxWidth="xs" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <Container component="main" maxWidth="xs" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
           <Card>
             <CardContent style={{ padding: '2rem' }}>
-              <Typography variant="h4" align="center" gutterBottom>🔐 SOC Login</Typography>
-              <form onSubmit={handleLogin}>
-                <TextField
-                  label="Username"
-                  variant="outlined"
-                  margin="normal"
-                  required
-                  fullWidth
-                  value={loginData.username}
-                  onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
-                />
-                <TextField
-                  label="Password"
-                  type="password"
-                  variant="outlined"
-                  margin="normal"
-                  required
-                  fullWidth
-                  value={loginData.password}
-                  onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                />
+              <Typography variant="h4" align="center">🔐 SOC Login</Typography>
+              <form onSubmit={handleLogin} style={{ marginTop: '1rem' }}>
+                <TextField label="Username" variant="outlined" margin="normal" required fullWidth value={loginData.username} onChange={(e) => setLoginData({ ...loginData, username: e.target.value })} />
+                <TextField label="Password" type="password" variant="outlined" margin="normal" required fullWidth value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} />
                 <Button type="submit" fullWidth variant="contained" color="primary" style={{ marginTop: '1rem' }} disabled={isLoading}>
                   {isLoading ? <CircularProgress size={24} /> : "Login"}
                 </Button>
@@ -134,7 +107,7 @@ function App() {
     );
   }
 
-  // RENDER DASHBOARD
+  // RENDER THE FULL DASHBOARD
   return (
     <ThemeProvider theme={darkTheme}>
       <Container maxWidth="lg" style={{ marginTop: "30px" }}>

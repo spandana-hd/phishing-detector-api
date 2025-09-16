@@ -5,11 +5,22 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from .models import TokenData, User
-
 load_dotenv()
+
+# --- Pydantic Models (Moved here to fix import error) ---
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+class User(BaseModel):
+    username: str
+    role: str
 
 # --- Security Configuration ---
 SECRET_KEY = os.getenv("SECRET_KEY", "a-strong-default-secret-key")
@@ -31,12 +42,12 @@ FAKE_USERS_DB = {
     "admin": {
         "username": "admin",
         "hashed_password": get_password_hash("admin123"),
-        "role": "admin"  # Admin user
+        "role": "admin"
     },
     "analyst": {
         "username": "analyst",
         "hashed_password": get_password_hash("analyst123"),
-        "role": "analyst" # Analyst user
+        "role": "analyst"
     }
 }
 
@@ -50,9 +61,7 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    # Add the user's role to the JWT token payload
-    to_encode.update({"role": data.get("role", "analyst")})
+    to_encode.update({"exp": expire, "role": data.get("role", "analyst")})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # --- User and Role Dependencies ---
@@ -65,19 +74,17 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        role: str = payload.get("role") # <-- Extract role from token
+        role: str = payload.get("role")
         if username is None or role is None:
             raise credentials_exception
-        token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
     
-    user_data = FAKE_USERS_DB.get(token_data.username)
+    user_data = FAKE_USERS_DB.get(username)
     if user_data is None:
         raise credentials_exception
     return User(**user_data)
 
-# New dependency to check for a specific role
 def require_role(required_role: str):
     def role_checker(current_user: User = Depends(get_current_user)):
         if current_user.role != required_role:
@@ -87,4 +94,3 @@ def require_role(required_role: str):
             )
         return current_user
     return role_checker
-
