@@ -1,0 +1,21 @@
+# FastAPI and Server
+fastapi
+uvicorn[standard]
+python-dotenv
+python-multipart
+
+# Security & Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+cryptography
+
+# Machine Learning & Data
+scikit-learn==1.7.1
+joblib
+pandas
+numpy
+
+# Domain & URL Analysis
+tldextract
+python-whois
+dnspython
